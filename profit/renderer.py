@@ -35,7 +35,7 @@ class Renderer(Observer):
         object that can be rendered with the Graphviz installation."""
         self.GV = None
 
-    def update(self, TM, G, colored=True, render_format='png'):
+    def update(self, TM, G, timenetwork=None, context=False, colored=True, render_format='png'):
         """Update graph object (GV attribute) and its representation: elements 
         count, node color, edge thickness, etc.
 
@@ -97,17 +97,66 @@ class Renderer(Observer):
                fillcolor="#ea4126" if colored else "#ffffff")
         
         # 2. Edge thickness and style
-        values = [freq[0] for freq in edges.values()]
-        if values: t_min, t_max = min(values), max(values)
-        for e, freq in edges.items():
-            if freq == (0, 0):
-                G.edge(str(e[0]), str(e[1]), style='dotted')
-                continue
-            if (e[0] == 'start') | (e[1] == 'end'):
-                G.edge(str(e[0]), str(e[1]), label=str(freq[0]), style='dashed')
-            else:
-                y = 1.0 + (5.0 - 1.0) * (freq[0] - t_min) / (t_max - t_min + 1e-6)
-                G.edge(str(e[0]), str(e[1]), label=str(freq[0]), penwidth=str(y))
+        if timenetwork is not None:
+            # Create dictionary mapping (source,target) tuples to avg execution times
+            time_dict = {}
+            if context: context_dict = {}
+            for _, row in timenetwork.iterrows():
+                time_dict[(row['source'], row['target'])] = row['avg_execution_time_seconds']
+                if context: context_dict[(row['source'], row['target'])] = row['context']
+
+            # Filter time_dict to only keep entries where the edge exists in edges
+            time_dict = {k: v for k, v in time_dict.items() if k in edges}
+            values = list(time_dict.values())
+
+            if values: t_min, t_max = min(values), max(values)
+            
+            for e, freq in edges.items():
+                if (e[0], e[1]) in time_dict:
+                    t = time_dict[(e[0], e[1])]
+                if freq == (0, 0):
+                    G.edge(str(e[0]), str(e[1]), style='dotted')
+                    continue
+                if (e[0] == 'start') | (e[1] == 'end'):
+                    G.edge(str(e[0]), str(e[1]), style='dashed')
+                else:
+                    y = 1.0 + (5.0 - 1.0) * (t - t_min) / (t_max - t_min + 1e-6)
+
+                    # Convert seconds to days, hours, minutes, seconds
+                    days = int(t // (24 * 3600))
+                    remaining = t % (24 * 3600)
+                    hours = int(remaining // 3600)
+                    remaining = remaining % 3600
+                    minutes = int(remaining // 60)
+                    seconds = int(remaining % 60)
+                    
+                    # Format time string
+                    time_str = ""
+                    if days > 0:
+                        time_str += f"{days}d "
+                    if hours > 0:
+                        time_str += f"{hours}h "
+                    if minutes > 0:
+                        time_str += f"{minutes}m "
+                    if seconds > 0 or time_str == "":
+                        time_str += f"{seconds}s"
+
+                    if context and (e[0], e[1]) in context_dict: label = context_dict[(e[0], e[1])] + " : " + time_str
+                    else: label = time_str
+                    
+                    G.edge(str(e[0]), str(e[1]), label=label.strip(), penwidth=str(y))
+        else:
+            values = [freq[0] for freq in edges.values()]
+            if values: t_min, t_max = min(values), max(values)
+            for e, freq in edges.items():
+                if freq == (0, 0):
+                    G.edge(str(e[0]), str(e[1]), style='dotted')
+                    continue
+                if (e[0] == 'start') | (e[1] == 'end'):
+                    G.edge(str(e[0]), str(e[1]), label=str(freq[0]), style='dashed')
+                else:
+                    y = 1.0 + (5.0 - 1.0) * (freq[0] - t_min) / (t_max - t_min + 1e-6)
+                    G.edge(str(e[0]), str(e[1]), label=str(freq[0]), penwidth=str(y))
         
         self.GV = G
 

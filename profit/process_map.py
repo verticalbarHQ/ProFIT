@@ -90,7 +90,9 @@ class ProcessMap:
                        'ordered' : False,
                        'cycle_rel': 0.5,
                        'colored': True,
-                       'render_format': 'png'}
+                       'render_format': 'png',
+                       'timenetwork': None,
+                       'context': False}
         self._Observers = {'T': TransitionMatrix(),
                            'Graph': Graph(),
                            'Renderer': Renderer()}
@@ -147,6 +149,8 @@ class ProcessMap:
 
         self._Observers['Renderer'].update(self._Observers['T'],
                                            self._Observers['Graph'],
+                                           self.Params['timenetwork'],
+                                           self.Params['context'],
                                            self.Params['colored'],
                                            self.Params['render_format'])
 
